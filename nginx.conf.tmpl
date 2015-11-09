@@ -1,0 +1,26 @@
+upstream api_backend {
+   {% for i in range(0, config["no_of_backends"]) -%}
+    server {{"api_%s" % i}}:8000;
+   {% endfor -%}
+}
+
+
+server {
+    listen 8080;
+
+    access_log /var/api/log/nginx_access.log;
+    error_log /var/api/log/nginx_error.log;
+
+
+    location / {
+
+        proxy_pass_header Server;
+        proxy_set_header Host $http_host;
+        proxy_redirect off;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Scheme $scheme;
+        proxy_pass http://api_backend;
+    }
+}
+
+
