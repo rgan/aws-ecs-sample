@@ -87,12 +87,12 @@ def deploy(docker_user, aws_ecs=False):
         api_containers = []
         for i in range(0,config["no_of_backends"]):
            api_containers.append("api_%s" % i)
-        local("docker rm -f %s nginx || true " % api_containers)
+        local("docker rm -f %s nginx || true " % " ".join(api_containers))
         api_container_cmds = []
         api_links = []
         for i in range(0,config["no_of_backends"]):
-            api_container_cmds.append("docker run --name api_%s -d api" % i)
+            api_container_cmds.append("docker run --name api_%s -d api && " % i)
             api_links.append("--link api_{0}:api_{0}".format(i))
-        local("%s && docker run --name nginx %s -p 8080:8080 -d nginx".\
-                format(" ".join(api_container_cmds), " ".join(api_links)))
+        local("%s docker run --name nginx %s -p 8080:8080 -d nginx" % \
+              (" ".join(api_container_cmds), " ".join(api_links)))
 
