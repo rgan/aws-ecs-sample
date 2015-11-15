@@ -35,14 +35,14 @@ def create_container_defs(docker_user):
               "hostPort": 80
             }
         ],
-        "memory": 500,
-        "cpu": 10
+        "memory": 8,
+        "cpu": 1
     }
     api_container = {
         "name": "api",
         "image": "%s/api" % docker_user,
-        "cpu": 10,
-        "memory": 500,
+        "cpu": 1,
+        "memory": 8,
         "essential": True,
         "portMappings": [
             {
@@ -53,20 +53,19 @@ def create_container_defs(docker_user):
     }
     return [nginx_container, api_container]
 
-def create_service_def(svc_name, task_def_arn):
-    return {
-        "serviceName": svc_name,
-        "taskDefinition": task_def_arn,
-        "desiredCount": 1,
-        "clientToken": "secret"
-    }
-
 def stop_and_delete_service(client, svc_name):
-    client.update_service(
-        service=svc_name,
-        desiredCount=0
-    )
-    client.delete_service(service=svc_name)
+    services_response = client.list_services()
+    print services_response
+    # {'ResponseMetadata':
+    # { u'serviceArns': [u'arn:aws:ecs:us-west-2:958237526296:service/sample-webapp']}
+    svc_arns = services_response["serviceArns"]
+    svc_exists = svc_arns and [svc_name in svc_arn for svc_arn in svc_arns][0]
+    if svc_exists:
+        client.update_service(
+            service=svc_name,
+            desiredCount=0
+        )
+        client.delete_service(service=svc_name)
 
 @task
 def deploy(docker_user, aws_ecs="n", do_build="y"):
@@ -85,7 +84,12 @@ def deploy(docker_user, aws_ecs="n", do_build="y"):
         stop_and_delete_service(client, "ecs-sample")
         task_def = client.register_task_definition(family="api",
                                                    containerDefinitions=create_container_defs(docker_user))
-        service_def = create_service_def("ecs-sample", task_def["ResponseMetadata"]["taskDefinitionArn"])
+        print task_def
+        taskdef_arn = task_def["taskDefinition"]["taskDefinitionArn"]
+        service = client.create_service(serviceName='ecs-sample',
+                                        taskDefinition= taskdef_arn, desiredCount=1)
+
+        print service
     else:
         api_containers = []
         for i in range(0,config["no_of_backends"]):
