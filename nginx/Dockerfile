@@ -1,5 +1,4 @@
 FROM ubuntu:precise
-MAINTAINER rgan
 RUN apt-get update && apt-get upgrade -y && apt-get install -y curl \
     build-essential \
     zlib1g-dev \

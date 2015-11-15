@@ -8,8 +8,8 @@ upstream api_backend {
 server {
     listen 8080;
 
-    access_log /var/api/log/nginx_access.log;
-    error_log /var/api/log/nginx_error.log;
+    access_log /var/log/nginx_access.log;
+    error_log /var/log/nginx_error.log;
 
 
     location / {
