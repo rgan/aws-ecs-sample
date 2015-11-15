@@ -69,12 +69,15 @@ def stop_and_delete_service(client, svc_name):
     client.delete_service(service=svc_name)
 
 @task
-def deploy(docker_user, aws_ecs=False):
+def deploy(docker_user, aws_ecs="n", do_build="y"):
     config = json.load(file("config.json"))
-    local("rm -rf build && mkdir -p build")
-    configure(config)
-    build_containers(docker_user)
-    if aws_ecs:
+    if do_build == 'y':
+        local("rm -rf build && mkdir -p build")
+        local("tar -czf build/api.tar.gz main.py api/")
+        configure(config)
+        build_containers(docker_user)
+        local("rm build/api.tar.gz")
+    if aws_ecs == 'y':
         client = boto3.client('ecs', region_name="us-west-2",
                               aws_access_key_id=os.environ["AWS_ACCESS_KEY_ID"],
                               aws_secret_access_key=os.environ["AWS_SECRET_ACCESS_KEY"]
