@@ -67,6 +67,37 @@ def stop_and_delete_service(client, svc_name):
         )
         client.delete_service(service=svc_name)
 
+def deploy_to_ecs(config, docker_user):
+    client = boto3.client('ecs', region_name="us-west-2",
+                              aws_access_key_id=os.environ["AWS_ACCESS_KEY_ID"],
+                              aws_secret_access_key=os.environ["AWS_SECRET_ACCESS_KEY"]
+                              )
+    stop_and_delete_service(client, "ecs-sample")
+    task_def = client.register_task_definition(family="api",
+                                               containerDefinitions=create_container_defs(docker_user))
+    print task_def
+    taskdef_arn = task_def["taskDefinition"]["taskDefinitionArn"]
+    service_response = client.create_service(serviceName='ecs-sample',
+                                        taskDefinition= taskdef_arn, desiredCount=1)
+    print service_response
+
+def deploy_locally(config):
+    api_containers = []
+    for i in range(0,config["no_of_backends"]):
+       api_containers.append("api_%s" % i)
+    local("docker rm -f %s nginx || true " % " ".join(api_containers))
+    api_container_cmds = []
+    api_links = []
+    for i in range(0,config["no_of_backends"]):
+        api_container_cmds.append("docker run --name api_%s -d api && " % i)
+        api_links.append("--link api_{0}:api_{0}".format(i))
+    local("%s docker run --name nginx %s -p 8080:8080 -d nginx" % \
+          (" ".join(api_container_cmds), " ".join(api_links)))
+
+@task
+def start_consul():
+    local("docker run -p 8400:8400 -p 8500:8500 -p 8600:53/udp -h node1 progrium/consul -server -bootstrap")
+
 @task
 def deploy(docker_user, aws_ecs="n", do_build="y"):
     config = json.load(file("config.json"))
@@ -75,31 +106,9 @@ def deploy(docker_user, aws_ecs="n", do_build="y"):
         local("tar -czf build/api.tar.gz main.py api/")
         configure(config)
         build_containers(docker_user)
-        local("rm build/api.tar.gz")
+        local("rm -rf build")
     if aws_ecs == 'y':
-        client = boto3.client('ecs', region_name="us-west-2",
-                              aws_access_key_id=os.environ["AWS_ACCESS_KEY_ID"],
-                              aws_secret_access_key=os.environ["AWS_SECRET_ACCESS_KEY"]
-                              )
-        stop_and_delete_service(client, "ecs-sample")
-        task_def = client.register_task_definition(family="api",
-                                                   containerDefinitions=create_container_defs(docker_user))
-        print task_def
-        taskdef_arn = task_def["taskDefinition"]["taskDefinitionArn"]
-        service = client.create_service(serviceName='ecs-sample',
-                                        taskDefinition= taskdef_arn, desiredCount=1)
-
-        print service
+        deploy_to_ecs(config, docker_user)
     else:
-        api_containers = []
-        for i in range(0,config["no_of_backends"]):
-           api_containers.append("api_%s" % i)
-        local("docker rm -f %s nginx || true " % " ".join(api_containers))
-        api_container_cmds = []
-        api_links = []
-        for i in range(0,config["no_of_backends"]):
-            api_container_cmds.append("docker run --name api_%s -d api && " % i)
-            api_links.append("--link api_{0}:api_{0}".format(i))
-        local("%s docker run --name nginx %s -p 8080:8080 -d nginx" % \
-              (" ".join(api_container_cmds), " ".join(api_links)))
+        deploy_locally(config)
 
